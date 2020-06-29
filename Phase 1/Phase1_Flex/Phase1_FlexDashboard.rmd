@@ -1,0 +1,124 @@
+---
+title: "Top 4 Charts for Phase1 Project"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    runtime: shiny
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)#Data Cleaning/Wrangling
+library(MASS)#Statistics
+library(GGally)#Correlation
+library(flexdashboard)#Dashboarding
+library(lubridate)#Date and Time Functionality
+library(ggpubr)
+library(Hmisc)
+library(DataExplorer)
+theme_set(theme_pubr())
+
+chicago2 <- read_csv("chicago2.csv")
+
+chicago2 = chicago2[-1]#drops first column
+
+chicago2 = chicago2 %>% mutate(Date = mdy_hms(Date))
+chicago2 = chicago2 %>% mutate(Hour = hour(Date))
+chicago2 = chicago2 %>% mutate(Months = month(Date))
+
+
+chicago2 = chicago2 %>% mutate(Hour = as.factor(Hour))
+chicago2 = chicago2 %>% mutate(Months = as.factor(Months))
+
+
+chicago2 = chicago2 %>% mutate(Arrest = as_factor(as.character(Arrest))) %>%
+mutate(Arrest = fct_recode(Arrest,
+"Arrested" = "TRUE",
+"Not Arrested" = "FALSE"))
+
+chicago2 = chicago2 %>% mutate(Domestic = as_factor(as.character(Domestic))) %>%
+mutate(Domestic = fct_recode(Domestic,
+"Domestic Violence" = "TRUE",
+"No Domestic Violence" = "FALSE"))
+
+
+chicago2 = chicago2 %>% mutate(`FBI Code` = as_factor(as.character(`FBI Code`))) %>%
+mutate(`FBI Code` = fct_recode(`FBI Code`,
+"Homicide" = "01A",
+"Invol. Manslaughter" = "01B",
+"Sexual Assault" = "02",
+"Robbery" = "03",
+"Aggravated Assault" = "04A",
+"Agravated Battery" = "04B",
+"Buglary" = "05",
+"Larceny" = "06",
+"Motor Vehicle Theft" = "07",
+"Simple Assault" = "08A",
+"Simple Battery" = "08B",
+"Arson" = "09",
+"Forgery & Conterfeiting" = "10",
+"Fraud" = "11",
+"Embezzlement" = "12",
+"Stolen Property" = "13",
+"Vandalism" = "14",
+"Weapons Violation" = "15",
+"Prostitution" = "16",
+"Criminal Sexual Abuse" = "17",
+"Drug Abuse" = "18",
+"Gambling" = "19",
+"Offenses Against Family" = "20",
+"Liquor License" = "22",
+"Disorderly Conduct" = "24",
+"Misc. Offenses" = "26"))
+
+
+#Reorder data
+chicago2 <- chicago2 %>% group_by(Arrest)
+chicago2 %>% arrange(desc(Hour))
+
+chicago2 <- chicago2 %>% group_by(Year)
+chicago2 %>% arrange(desc(Months))
+
+chicago2 = chicago2 %>% drop_na()
+
+
+drop <- c("Y Coordinate","Year", "ID", "Case Number", "Updated On", "X Coordinate", "Location") # Drop these variables for insignificance
+new_chicago = chicago2[,!(names(chicago2) %in% drop)]
+
+new_chicago = filter(new_chicago, `FBI Code` != 'Embezzlement' & `FBI Code` != 'Gambling' & `FBI Code` != 'Liquor License' & `FBI Code` != 'Arson' & `FBI Code` != 'Stolen Property')
+```
+
+Row
+-----------------------------------------------------------------------
+
+### Chart A
+
+```{r FBI Code to Count}
+plot_density(new_chicago, title = "Density Plot of Numeric Variables")
+```
+
+
+### Chart B
+
+```{r Arrest to Count}
+ggplot(new_chicago, aes(Arrest)) +
+  geom_bar(fill = "#0073C2FF") +
+  theme_pubclean() + theme(axis.text.x = element_text(angle = 90, vjust= 0.5))
+```
+
+
+Row
+-----------------------------------------------------------------------
+### Chart C
+
+```{r Ward to Arrest}
+ggplot(new_chicago, aes(`FBI Code`)) +
+  geom_bar(fill = "#0073C2FF") +
+  theme_pubclean() + theme(axis.text.x = element_text(angle = 90, vjust= 0.5))
+```
+
+
+-----------------------------------------------------------------------
+### Chart D
+```{r Hour to Arrest}
+ggplot(new_chicago, aes(x=Hour, fill = Arrest)) + geom_bar() + theme_bw()
+```

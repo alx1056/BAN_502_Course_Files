@@ -1,0 +1,309 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+# Fields, Alex
+## BAN 502
+### Module 3 - Assignment 2
+
+
+#### Task 2 - Q&A
+My thought proces is that I would want to use logistic regression for predicting categorical values for a parolee violating/not violoating parole. I would want to use a box plot with categorical variables and box plots for numeric variables.  
+
+
+#### Task 3 - Q&A
+The information that would "predict" violator in my opinion would be Gender (male), race, age and state.
+These seem to logically explain this variable. I decided to start my model with Violator ~ State. This gave an AIC of 390. All states we statistically significant except for Kentucky. The model seems "ok". I feel it can be better. 
+
+
+#### Task 4 - Q&A
+When running forward and backwards models I noticed that for forward, we keep the variables: state, multiple.offenses, age, race max.sentence. All variables are significant except age and max.sentence. The AIC on this is very low, close to 252 which is what we want. 
+
+For backwards selection, it seems very similiar in terms of AIC being around 252. However, variables age state and max.sentence are not significant. Since both are bringing roughly the same results I will examine the logic of the results. 
+
+State and Age seem less significant since these factors dont really play a role as to whether you violate parole or not. If a certain state has a stricter bond/parole law than another, that may play a role. Its hard to tell if someones age really affects this since everyones maturity level is different at certain ages. Max Sentence makes sense to affect the model since the higher the sentence either, you will want to break it to never do time or you'll want to abide by the rules if the sentence is only a fwe months so you dont get an extended sentence. 
+
+
+#### Task 5 - Q&A
+When running a logistic regression model on violator being the predictor and State, multiple.offenses and race I can see that this model seems good. Its not perfect but the AIC is 365, which is pretty low and closer to what we want. States of Louisiana, Kentucky are not significant in the model but this could be for many reasons. I belive this ok since states can have different parole laws (3 strike rule) and this can skew the data. 
+
+
+#### Task 8 - Q&A
+The accuracy of the model is 25% while the sensitivity 83.73% and specificity 18.18% respectivly. The issue of incorrectly classifying a Parolee could mean more jail time if they are falsely accused of violating parole. That could mean years added on a persons sentence. 
+
+
+#### Task 9 - Q&A
+When looking at the optimal probability threshold we can see that around > 0.5 which yields about 90.4% accuracy. 
+
+
+#### Task 10 - Q&A
+When recreating the same procedure from Task 9, I can see that using a  threshold of > 0.5 yields a 13% increase in model accuracy. Sensitivity was 0.005586592, specificity was 0.956521739 and the cutoff was closer to 1. The accuracy of the model was 38% respectivly. The test seemed to be a better model than the training set but it was still poor being so inaccurate. 
+
+
+
+```{r message=FALSE, echo=FALSE}
+library(MASS)
+library(tidyverse)
+library(caret)
+library(ROCR)
+library(e1071)
+```
+
+
+```{r Task 0}
+library(readr)
+parole <- read_csv("parole.csv")
+parole = as_tibble(parole)
+
+parole = parole %>% mutate(male = as_factor(as.character(male))) %>%
+mutate(male = fct_recode(male,
+"male" = "1",
+"female" = "0"))
+
+parole = parole %>% mutate(race = as_factor(as.character(race))) %>%
+mutate(race = fct_recode(race,
+"white" = "1",
+"other" = "2"))
+
+parole = parole %>% mutate(state = as_factor(as.character(state))) %>%
+mutate(state = fct_recode(state,
+"other" = "1",
+"Kentucky" = "2",
+"Louisiana" = "3",
+"Virginia" = "4"))
+
+parole = parole %>% mutate(crime = as_factor(as.character(crime))) %>%
+mutate(crime = fct_recode(crime,
+"other" = "1",
+"larceny" = "2",
+"drug-related crime" = "3",
+"driving-related crime" = "4"))
+
+parole = parole %>% mutate(violator = as_factor(as.character(violator))) %>%
+mutate(violator = fct_recode(violator,
+"Violated Parole" = "0",
+"No Parole Violation" = "1"))
+
+parole = parole %>% drop_na() #drops N/A's
+str(parole)
+
+
+```
+
+
+
+training data
+```{r Task 1}
+
+set.seed(12345)
+train.rows = createDataPartition(y = parole$violator, p = 0.7, list =FALSE)
+train = slice(parole, train.rows)
+test = slice(parole, -train.rows)
+
+```
+
+
+Visualizing what fits best with Violator with bar plot
+```{r bar plot1}
+library(ggplot2)
+
+ggplot(parole, aes(x=male, fill = violator)) + geom_bar() + theme_bw()
+ggplot(parole, aes(x=race, fill = violator)) + geom_bar() + theme_bw()
+ggplot(parole, aes(x=state, fill = violator)) + geom_bar() + theme_bw()
+ggplot(parole, aes(x=crime, fill = violator)) + geom_bar() + theme_bw()
+
+```
+
+
+Visualizing what fits best with Violator with box plot
+```{r bar plot2}
+library(ggplot2)
+
+ggplot(parole, aes(x=male, y=age)) + geom_boxplot() + theme_bw()
+ggplot(parole, aes(x=race, y=time.served)) + geom_boxplot() + theme_bw()
+ggplot(parole, aes(x=state, y=age)) + geom_boxplot() + theme_bw()
+ggplot(parole, aes(x=age, y=violator)) + geom_boxplot() + theme_bw()
+
+```
+
+tabular data for prediction
+```{r}
+t1 = table(parole$violator, parole$multiple.offenses)
+prop.table(t1, margin = 2)
+
+t2 = table(parole$violator, parole$max.sentence)
+prop.table(t2, margin = 2)
+
+```
+
+
+
+Starting with Violator as the Predictor and State as the Response variable
+```{r Task 3}
+
+mod1 = glm(violator ~ state, parole, family = "binomial")
+summary(mod1)
+
+```
+
+
+Forward and Backwards selection
+```{r Task 4}
+
+allmod = glm(violator ~., train, family = "binomial")
+summary(allmod)
+
+emptymod = glm(violator ~ -1, train, family = "binomial")
+summary(emptymod)
+
+```
+
+
+```{r forward}
+forwardmod = stepAIC(emptymod, direction = "forward", scope=list(upper=allmod, lower=emptymod),trace = TRUE)
+summary(forwardmod)
+```
+
+
+```{r}
+backmod = stepAIC(allmod, direction = "backward", trace = TRUE)
+summary(backmod)
+```
+
+
+
+
+```{r task 5}
+
+mod1 = glm(violator ~ state + multiple.offenses + race, train, family = "binomial")
+summary(mod1)
+
+```
+
+Prediction
+```{r Task 6}
+#parolee 1
+newdata1 = data.frame(state = "Louisiana", multiple.offenses = 1, race = "white")
+predict(mod1, newdata1, type="response")
+
+
+#parolee 2
+newdata2 = data.frame(state = "Kentucky", multiple.offenses = 0, race = "other")#2 stands for "other"
+predict(mod1, newdata2, type="response")
+```
+
+
+
+```{r}
+ctrl = trainControl(method = "cv", number = 10)
+
+set.seed(12345)
+modKFold = train(violator ~., train, method = "glm", trControl = ctrl)
+summary(modKFold)
+
+```
+
+
+Develop ROC curve
+```{r Task 7}
+predictions = predict(allmod, type = "response")
+head(predictions)
+
+
+ROCRpred = prediction(predictions, train$violator)
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+as.numeric(performance(ROCRpred, "auc")@y.values)
+
+```
+
+
+Create Specificity & Sensitivity
+```{r}
+opt.cut = function(perf, pred){
+    cut.ind = mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(ROCRperf, ROCRpred))
+```
+
+Test thresholds to evaluate accuracy  
+```{r}
+#confusion matrix
+t1 = table(train$violator,predictions > .01166761)
+t1
+```
+Calculate accuracy  
+```{r}
+(t1[1,1]+t1[2,2])/nrow(train)
+```
+Can apply trial and error to maximize accuracy (here trying 0.5 as threshold)
+```{r}
+t1 = table(train$violator,predictions > 0.5)
+t1
+(t1[1,1]+t1[2,2])/nrow(train)
+```
+
+Threshold = 0.6  
+```{r}
+t1 = table(train$violator,predictions > 0.6)
+t1
+(t1[1,1]+t1[2,2])/nrow(train)
+```
+
+
+A naive prediction (everyone doesn't violate)
+```{r}
+t1 = table(train$violator,predictions > 1)
+t1
+(t1[1])/nrow(train)
+```
+
+
+
+
+
+
+
+Recreating for test set
+```{r}
+allmod = glm(violator ~., test, family = "binomial")
+summary(allmod)
+
+
+predictions = predict(allmod, type = "response")
+
+ROCRpred = prediction(predictions, test$violator)
+ROCRperf = performance(ROCRpred, "tpr", "fpr")
+plot(ROCRperf, colorize=TRUE, print.cutoffs.at=seq(0,1,by=0.1), text.adj=c(-0.2,1.7))
+
+as.numeric(performance(ROCRpred, "auc")@y.values)
+
+```
+
+```{r}
+opt.cut = function(perf, pred){
+    cut.ind = mapply(FUN=function(x, y, p){
+        d = (x - 0)^2 + (y-1)^2
+        ind = which(d == min(d))
+        c(sensitivity = y[[ind]], specificity = 1-x[[ind]], 
+            cutoff = p[[ind]])
+    }, perf@x.values, perf@y.values, pred@cutoffs)
+}
+print(opt.cut(ROCRperf, ROCRpred))
+```
+
+threshold
+```{r}
+#confusion matrix
+t1 = table(test$violator,predictions > 0.5)
+t1
+
+(t1[1,1]+t1[2,2])/nrow(train)
+```

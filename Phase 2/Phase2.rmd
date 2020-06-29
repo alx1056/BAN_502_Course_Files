@@ -1,0 +1,353 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#Fields, Alex
+##BAN 502
+###Phase 2 - Final Project
+
+
+
+#### Part 1 - Data Prep
+```{r part 1-1, message=FALSE}
+options(tidyverse.quiet = TRUE)
+library(tidyverse)#Data Cleaning/Wrangling
+library(MASS)#Statistics
+library(caret)#ML base
+library(VIM)#Missing data
+library(lubridate)#Date and Time Functionality
+library(cluster)#algorithms for clustering
+library(factoextra)#visualization
+library(dendextend)#visualization
+library(rpart)#Decision Tree
+library(caretEnsemble) #new package
+library(ranger)#Random Forest
+library(nnet)#Nueral Network
+library(xgboost)#XGBoost
+library(RColorBrewer)#RandomForest
+library(rattle)#RandomForest
+library(GGally)#Correlation
+```
+
+
+###Import/Viewing Dataset
+```{r Importing/Viewing, message = FALSE}
+chicago <- read_csv("chicago2.csv")
+
+chicago = chicago[-1]#drops first column
+
+#Dataset is too big for ML Models. I will need to cut dataset in ~half.
+sample_size = floor(0.2*nrow(chicago))
+new_data = sample(seq_len(nrow(chicago)),size = sample_size)
+chicago =chicago[new_data,]
+
+```
+
+####We are using only 20% of the 15000 rows in the dataset. Since this RMD file is very computationally intensive, it is needed. 
+
+
+###Refactoring Data
+```{r message=FALSE}
+
+chicago = chicago %>% mutate(Date = mdy_hms(Date))
+
+chicago = chicago %>% mutate(Arrest = as_factor(as.character(Arrest))) %>%
+mutate(Arrest = fct_recode(Arrest,
+"Arrested" = "TRUE",
+"Not_Arrested" = "FALSE"))
+
+chicago = chicago %>% mutate(Domestic = as_factor(as.character(Domestic))) %>%
+mutate(Domestic = fct_recode(Domestic,
+"Domestic_Violence" = "TRUE",
+"No_Domestic_Violence" = "FALSE"))
+
+chicago = chicago %>% mutate(`FBI Code` = as_factor(as.character(`FBI Code`))) %>%
+mutate(`FBI Code` = fct_recode(`FBI Code`,
+"Homicide" = "01A",
+"Sexual_Assault" = "02",
+"Robbery" = "03",
+"Aggravated_Assault" = "04A",
+"Agravated_Battery" = "04B",
+"Buglary" = "05",
+"Larceny" = "06",
+"Motor_Vehicle_Theft" = "07",
+"Simple_Assault" = "08A",
+"Simple_Battery" = "08B",
+"Arson" = "09",
+"Forgery&Conterfeiting" = "10",
+"Fraud" = "11",
+#"Embezzlement" = "12",
+"Stolen_Property" = "13",
+"Vandalism" = "14",
+"Weapons Violation" = "15",
+"Prostitution" = "16",
+"Criminal_Sexual_Abuse" = "17",
+"Drug Abuse" = "18",
+"Gambling" = "19",
+"Offenses_Against_Family" = "20",
+"Liquor_License" = "22",
+"Disorderly_Conduct" = "24",
+"Misc_Offenses" = "26"))
+
+
+```
+
+####In the above code I am factoring Arrest, Domestic and FBI CODE to show string like data for the default data of TRUE/FALSE and integer values.  
+
+###View missing data
+```{r}
+vim_plot = aggr(chicago, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+countNA(chicago)
+chicago = chicago %>% drop_na()
+vim_plot = aggr(chicago, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+```
+
+####We are deleting all NAs in the dataset and showing what is being deleted visually. 
+
+###Data Cleansing
+```{r message = FALSE}
+drop <- c("Y Coordinate","Year", "ID", "Case Number", "Updated On", "X Coordinate", "Latitude", "Longitude", "Block", "Beat", "Description", "Location Description") # Drop these variables for insignificance
+
+chicago = chicago[,!(names(chicago) %in% drop)]
+
+
+chicago = filter(chicago, `FBI Code` != 'Embezzlement' & `FBI Code` != 'Gambling' & `FBI Code` != 'Liquor License' & `FBI Code` != 'Arson' & `FBI Code` != 'Stolen Property')#Filter out unecesssary data
+
+```
+
+####I am excluding all variables that are not needed in the dataset and filtering out certain factors that are also not important for this exercise. 
+
+
+
+##Part 2 Predicting the Data
+
+
+###Training/Testing Split
+
+```{r}
+set.seed(1234)
+train.rows = createDataPartition(chicago$Arrest,p=0.7,list=FALSE)
+train = dplyr::slice(chicago,train.rows)
+test = dplyr::slice(chicago,-train.rows)
+```
+
+####We are splitting the dataset into training and testing sets.  
+
+
+###Logistic Regression
+```{r}
+#logit <- glm(Arrest~Domestic+`FBI Code`+Ward+District, data = train, family="binomial")
+#summary(logit)
+```
+
+```{r}
+#saveRDS(logit,"logit.rds")
+#rm(logit)
+```
+
+```{r}
+logit = readRDS("logit.rds")
+summary(logit)
+```
+####We can see using logistic regression, using Arrest as our reponse variable and Domestic, FBI CODE, Ward and District as our predictor variables that Domestic and FBI Code are more statistically significant in predicting future arrest. We can see users who had past arrest with the following are most likely to be arrested again. Domest Violence, Weapons Violation, Simple Battery, Disorderly Conduct and Misc_Offenses (Other). 
+
+##Random Forest
+
+###Random Forest Generation
+```{r}
+# fit_control = trainControl(method = "cv",
+#                            number = 3) #set up 3 fold cross-validation
+# 
+# 
+# set.seed(1234)
+# rf_fit = train(Arrest ~.,
+#                 data = train,
+#                 method = "ranger",
+#                 importance = "permutation",
+#                 trControl = fit_control,
+#                 num.trees = 10)
+
+```
+
+```{r}
+#saveRDS(rf_fit,"rf_fit.rds")
+#rm(rf_fit)
+```
+
+```{r}
+rf_fit = readRDS("rf_fit.rds")
+rf_fit
+```
+####We can see that running Random Forest with a 3 fold 10 tree model, that "extraTrees" was the best splitrule method showing an accuracy of 87& and a Kappa of 57%. The only downside to this is that mtrys was over 2000. 
+
+
+
+###Validating variable importance
+```{r}
+varImp(rf_fit)
+```
+####Random Forest is very good in predicting variables of importance in model selection.Primary Type: Narcotics and FBI Code: Drug Abuse were the most important variables in this model. This is slightly different from what we saw with Logistic Regression. 
+
+
+
+
+##Building Decision Tree
+```{r Task 2}
+tree1 = rpart(Arrest ~., train, method = "class")
+fancyRpartPlot(tree1, sub = "Decision Tree 1")
+
+#Showing accuracy of tree and prevents from a too complex tree
+printcp(tree1)
+plotcp(tree1)
+```
+
+####We can see that running Arrest as the Response variable and all others being the predictor that our Decsion Tree is is showing a node error amount of 20%. Showing an optimal Complexity Parameter of 12%. We are showing overfitting since we are showing an accuracy of close to 100%. 
+
+###CP value change
+```{r}
+tree2 = rpart(Arrest ~., train, cp=.012, method="class")
+fancyRpartPlot(tree2, sub = "Decision Tree 1")
+printcp(tree2)
+```
+
+
+####This seems to be the worst of our models, the trees predictors are way too long and the tree is too accurate that we can assume overfitting. This is too good to be true even when we change the CP. 
+
+
+###Tree predicting
+```{r Task 6}
+treepred = predict(tree1, train, type = "class")
+head(treepred)
+
+```
+
+
+###Confusion Matrix
+```{r}
+confusionMatrix(treepred,train$Arrest,positive="Not_Arrested") #prdictions first then actual
+```
+
+####Test set is showing overfitting like the train set did. 
+
+
+
+###Test Confusion Matrix
+```{r}
+tree2 = rpart(Arrest ~., test, method = "class")
+treepred = predict(tree2, test, type = "class")
+confusionMatrix(treepred,test$Arrest,positive="Not_Arrested") #predictions first then actual
+
+```
+
+
+
+
+
+
+
+
+
+
+
+##Nueral Network 
+
+###Building Nueral Network
+
+```{r}
+drop <- c("IUCR", "Primary Type") # Drop these variables for insignificance
+
+train = train[,!(names(train) %in% drop)]
+test = test[,!(names(test) %in% drop)]
+
+#Converts all data to factors
+train[sapply(train, is.character)] <- lapply(train[sapply(train, is.character)], 
+                                       as.factor) #Converts all chr data into factors
+
+test[sapply(test, is.character)] <- lapply(test[sapply(test, is.character)], 
+                                       as.factor) #Converts all chr data into factors
+```
+
+####We are applying all other variables as factors to run  the NNET. We are also taking out IUCR since it has over 100 factors. 
+
+
+```{r}
+
+
+start_time = Sys.time() #for timing
+fitControl = trainControl(method = "cv",
+                           number = 3)
+
+set.seed(1234)
+nnetBasicTrain = train(x=as.data.frame(train[,-3]),y=train$Arrest,
+                 method = "nnet",
+                 #tuneGrid = nnetGrid,
+                 trControl = fitControl,
+                 MaxNWt = 15000,
+                 trace = FALSE)
+
+end_time = Sys.time()
+end_time-start_time
+
+
+```
+
+####We are creating out NNET with the training dataset. We are setting out Max Network Weights to over 15,000 since we have largely factored dataset. 
+
+
+```{r}
+nnetBasicTrain
+```
+
+
+####We are showing an accuracy of 79% with NNET model. THis seems relatively in line with what we would want to see. Our decay rates are constant so this could cause an issue with our model. 
+
+
+###Results nnet 
+```{r}
+plot(nnetBasicTrain)
+predNetBasicTrain = predict(nnetBasicTrain, train)
+confusionMatrix(predNetBasicTrain, train$Arrest, positive = "Not_Arrested")
+```
+####Our model is showing some inaccuracies in the model. We are showing no Neg Pred values and showing the same accuracy as our Naive approach. This is not good. 
+
+
+
+###Building Nueral Network Test
+```{r}
+
+start_time = Sys.time() #for timing
+fitControl = trainControl(method = "cv",
+                           number = 3)
+
+set.seed(1234)
+nnetBasicTest = train(x=as.data.frame(test[,-3]),y=test$Arrest,
+                 method = "nnet",
+                 #tuneGrid = nnetGrid,
+                 trControl = fitControl,
+                 MaxNWt = 15000,
+                 trace = FALSE)
+
+end_time = Sys.time()
+end_time-start_time
+
+
+```
+
+```{r}
+nnetBasicTest
+```
+
+###Results nnet 
+```{r}
+plot(nnetBasicTest)
+predNetBasicTest = predict(nnetBasicTest, test)
+confusionMatrix(predNetBasicTest, test$Arrest, positive = "Not_Arrested")
+```
+
+####Again, as with the Training set, the test set above is showing the same accuracy as the Naive approach. This is not the model we would want to use moving forward. 
+
+
+
+##Model Findings
+###In the end looking through all models, I would suggest using Logistic Regression or Random Forest for the model to accuratly predict if someone will be arrested in the future given certain criteria. 

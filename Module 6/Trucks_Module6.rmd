@@ -1,0 +1,162 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#Fields, Alex
+##BAN 502
+###Module 6 - Assignmet 1
+
+
+#### Q&A - Task 1
+When viewing geom_smooth and geom_point for the relationship for Distance and Speeding, I can see a partial relationship. 
+I only see it with geom_smooth, geom_point seems to just cluster within groups. Nothing is linear. 
+
+#### Q&A - Task 4
+Is there consensus between these two methods as the optimal number of clusters?
+*Yes, it seems that with the "descent" method, we are seeing the optimal number technically being the highest number which to me, doesn't seem correct. With the Ascent method, it draws a vertical line to give you another look into what it thinks is optimal. I agree with R when it states that 4 is the optimal number of clusters.*
+
+#### Q&A - Task 5
+In words, how would you characterize the clusters you created in Task 5?
+*After viewing my optimal cluster number, and applying that to the dataset, it seems to fit very well. There is no overlapping and  the data seems to match, intuitively.*
+
+#### Q&A - Task 9
+What patterns do you see? *I see the same pattern regarding the clusters that you would see with the KMeans algorithm. This shows me that we can produce the same output as the KMeans algorithm*
+
+
+
+####Library
+```{r message = FALSE}
+options(tidyverse.quiet=TRUE)
+library(tidyverse)
+library(cluster) #algorithms for clustering
+library(factoextra) #visualization
+library(dendextend)
+library(caret)
+```
+
+
+###Task 1
+```{r message = FALSE}
+trucks <- read_csv("trucks.csv")
+
+ggplot(trucks, aes(Distance, Speeding)) + geom_point() 
+ggplot(trucks, aes(Distance, Speeding)) + geom_smooth()
+
+```
+
+
+###Task 2
+```{r message = FALSE}
+
+summary(trucks)#viewing the summary before pre-scaling 
+
+
+trucks2 <- trucks %>% dplyr::select(-Driver_ID)
+
+trucks2 = as.data.frame(scale(trucks2))
+summary(trucks2)
+
+```
+
+
+
+###Task 3
+```{r}
+set.seed(64)
+clusters1 <- kmeans(trucks2, 2)
+```
+
+Visualize the clustering  
+```{R}
+fviz_cluster(clusters1, trucks2)
+```
+
+
+
+###Task 4
+Visually identify optimal number of clusters  
+```{r}
+set.seed(64)
+fviz_nbclust(trucks2, kmeans, method = "wss") #minimize within-cluster variation
+```
+Another method  
+```{r}
+set.seed(64)
+fviz_nbclust(trucks2, kmeans, method = "silhouette") #maximize how well points sit in their clusters
+```
+
+
+###Task 5
+####Using optimal #of clusters (4)
+```{r}
+set.seed(64)
+clusters2 <- kmeans(trucks2, 4)
+fviz_cluster(clusters2, trucks2)
+```
+
+
+###Task 6 (Basketball)
+```{r message = FALSE}
+bball <- read_csv("kenpom20.csv")
+
+
+bball2 <- bball %>% dplyr::select(-TeamName)
+
+bball2 = as.data.frame(scale(bball2))
+summary(bball2)
+
+
+```
+
+
+```{r}
+set.seed(123)
+clusters1 <- kmeans(bball2, 2)
+```
+
+Visualize the clustering  
+```{R}
+fviz_cluster(clusters1, bball2)
+```
+
+Visually identify optimal number of clusters  
+```{r}
+set.seed(123)
+fviz_nbclust(bball2, kmeans, method = "wss") #minimize within-cluster variation
+```
+Another method  
+```{r}
+set.seed(123)
+fviz_nbclust(bball2, kmeans, method = "silhouette") #maximize how well points sit in their clusters
+```
+
+Optimal Cluster
+```{r}
+set.seed(123)
+clusters2 <- kmeans(bball2, 2)
+fviz_cluster(clusters2, bball2)
+```
+
+
+
+###Task 8
+Cluster of 4
+```{r}
+set.seed(1234)
+clusters2 <- kmeans(bball2, 4)
+fviz_cluster(clusters2, bball2)
+```
+
+
+###Task 9 
+
+Attach cluster to dataset
+```{r}
+bball2 = bball2 %>% mutate(clusternum = clusters2$cluster)
+str(bball2)
+```
+
+```{r}
+ggplot(bball2, aes(x=AdjOE,y=AdjDE,color=factor(clusternum))) + geom_point()
+```

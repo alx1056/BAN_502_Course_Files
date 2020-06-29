@@ -1,0 +1,79 @@
+---
+output: word_document
+---
+
+
+#Alex Fields
+## BAN 502 Module 1 - Assignment 3
+
+```{r Task 1, message=FALSE}
+
+#install.packages("tidyverse") #only run this line if you have not installed the Tidyverse package previously
+library(tidyverse)
+
+```
+
+```{r Task 2}
+diamonddata = diamonds
+print(paste("Number of Rows:", nrow(diamonddata)))
+print(paste("Number of Columns:", ncol(diamonddata)))
+
+```
+
+```{r Task 3}
+ggplot(data = diamonddata, aes(x=carat, y=price)) + geom_point()
+
+```
+The relationship between Carat and Price seem to be very correlated. One would suspect that the higher the price of the diamond, the higher quality/quantity of Carats there would be. 
+ 
+```{r Task 4}
+ggplot(data = diamonddata, aes(x=carat, y=price, color=cut)) + geom_point()
+
+```
+The relationship between Carat, Price and Cut seem to be very correlated, like the before.
+Its easy to see that the price of a Diamond is related to the Carat and Cut of Diamond. It seems that Cut varies from range and Carat so the correlation of Cut is presumably close to 0. 
+
+```{r Task 5}
+ggplot(data = diamonddata, aes(x=carat, y=price, color=cut)) + geom_point() + facet_wrap(~color)
+
+```
+The relationship between Carat, Price, Cut and Color seem to be very correlated, like the before.
+It seems like before, with Cut, Color varies from range and Carat so the correlation of Color is presumably close to 0. All Colors seem the show the same graph (give or take a few outliers). 
+
+
+```{r Task 6, message=FALSE}
+InventoryData <- read_csv("InventoryData.csv")
+summary(InventoryData)
+```
+
+```{r Task 7}
+inventoryA = 
+  InventoryData %>% filter(Supplier == 'A')
+
+print(paste("Number of Rows in 'InventoryA' Dataframe:", nrow(inventoryA)))
+```
+
+
+```{r Task 8}
+inventoryA = mutate(inventoryA, OnHandRatio = `On Hand` / `Annual Demand`)
+
+```
+The code above creates a new variable called 'OnHandRatio' and this calculates the ratio of SKU's on hand vs the demand of said SKU.
+
+```{r Task 9}
+avg_cost = 
+  inventoryA %>%
+    group_by(`Item SKU`) %>%
+      summarise(SKUAvgCost = median(`Cost per Unit ($)`))
+
+```
+
+
+```{r Task 10}
+print(paste("Q: Given your previous course experience with R/RStudio, what topics/concepts did you find to be
+most challenging?
+"))
+
+print(paste("A: Task 9 seemed to be a little bit of a challenge but overall it was not too difficult."))
+```
+

@@ -1,0 +1,76 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#Fields, Alex
+##Ban 502
+### Module 4 - Assignment 1
+
+
+
+
+#### Task 1 - Q&A
+Using CountNA() and vim_plot I was able to see that we are missing 11 datapoints in our dataset.
+Final is misssing 4 points, TakeHome is missing 3, Midterm is missing 3, Tutorial is missing 1 and Assignment and Prefix are missing none. 
+
+#### Task 2 - Q&A
+There does appear to be Systemic Missingness. There are 2 students missing just TakeHome work while there is one student missing TakeHome and Midterm. 
+
+#### Task 3 - Q&A
+Using Row-Wise deletion their are now 89 observations/rows instead of 99.The 11 NAs from earlier are no longer there 
+
+#### Task 4 - Q&A
+Using Column-Wise deletion to get rid of missing values leaves me with 2 of the original 6 Columns.
+
+#### Task 5 - Q&A
+For this dataset, Row-Wise deletion is the best approach. Since most of the variables have missing data your dataset will not be the same as it was before with Column-Wise Deletion. If those 4 variables deleted are integral to the dataset than you might as well not run the analysis in the first place. Row-Wise will keep "most" of the data in place.
+
+#### Task 7 - Q&A
+When looking at the imputation for Tutorial, Midterm, TakeHome and Final we can see that Tutorial is not being plotted.This is because the function only works for 2 or missing values in the variable. When looking at the density plot for TakeHome, it appears like two different densities are being graphed. This shows that the imputed mean calculation is off for this variable and we would not use it. Midterm and Final seem fair to use.  
+
+
+
+```{r Task 1 and 2, message=FALSE}
+options(tidyverse.quiet = TRUE)
+library(tidyverse)
+library(VIM)
+library(mice)
+
+class_grades <- read_csv("class-grades.csv")
+
+countNA(class_grades)
+
+vim_plot = aggr(class_grades, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+
+```
+
+###Row-Wise Deletion
+```{r Task 3}
+
+class_grades_new = class_grades %>% drop_na(Final) %>% drop_na(TakeHome) %>% drop_na(Midterm) %>% drop_na(Tutorial)
+
+countNA(class_grades_new)
+vim_plot = aggr(class_grades_new, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+
+```
+
+###Column-Wise Deletion
+```{r}
+class_grades_col = class_grades %>% select(-Final) %>% select(-Tutorial) %>% select(-Midterm) %>% select(-TakeHome)  
+vim_plot = aggr(class_grades_col, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+```
+
+###impute data
+```{r}
+class_grades_imp = mice(class_grades, m=1, method = "pmm", seed = 12345)
+#in line above: m=1 -> runs one imputation, seed sets the random number seed to get repeatable results
+summary(class_grades_imp)
+densityplot(class_grades_imp)
+#red imputed, blue original, only shows density plots when more than 1 value the variable was imputed
+#note that the density plots are fairly uninteresting given the small amount of missing data
+class_grades_complete = complete(class_grades_imp)
+summary(class_grades_complete)
+
+```
+

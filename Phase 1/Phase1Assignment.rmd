@@ -1,0 +1,244 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#Fields, Alex
+##BAN 502
+###Phase 1 Course Project
+
+
+
+#### Part 1 - Data Exploration
+```{r part 1-1, message=FALSE}
+options(tidyverse.quiet = TRUE)
+library(tidyverse)#Data Cleaning/Wrangling
+library(MASS)#Statistics
+library(GGally)#Correlation
+library(caret)#ML
+library(VIM)#Missing data
+library(mice)#Missing data_2
+library(flexdashboard)#Dashboarding
+library(lubridate)#Date and Time Functionality
+library(ggpubr)
+library(Hmisc)
+library(DataExplorer)#Density Plot
+theme_set(theme_pubr())
+```
+
+
+##Import/Viewing Dataset
+```{r Importing/Viewing, message = FALSE}
+chicago2 <- read_csv("chicago2.csv")
+
+chicago2 = chicago2[-1]#drops first column
+
+```
+
+
+###Comments from *Import/View*
+We can see when importing the dataset that there is a "Key" Variable that is not needed for our purposes. It is not labeled and R defaults it "X1". I used bracket notation to remove this for cleaner data. 
+
+When looking at the data, I can see that this a large dataset. 15000 rows and 22 variables/columns. Anything computationally heavy would not be ideal on this dataset.
+
+
+
+###Refactoring Data
+```{r}
+
+chicago2 = chicago2 %>% mutate(Date = mdy_hms(Date))
+chicago2 = chicago2 %>% mutate(Hour = hour(Date))
+chicago2 = chicago2 %>% mutate(Months = month(Date))
+
+
+chicago2 = chicago2 %>% mutate(Hour = as.factor(Hour))
+chicago2 = chicago2 %>% mutate(Months = as.factor(Months))
+
+
+chicago2 = chicago2 %>% mutate(Arrest = as_factor(as.character(Arrest))) %>%
+mutate(Arrest = fct_recode(Arrest,
+"Arrested" = "TRUE",
+"Not Arrested" = "FALSE"))
+
+chicago2 = chicago2 %>% mutate(Domestic = as_factor(as.character(Domestic))) %>%
+mutate(Domestic = fct_recode(Domestic,
+"Domestic Violence" = "TRUE",
+"No Domestic Violence" = "FALSE"))
+
+
+chicago2 = chicago2 %>% mutate(`FBI Code` = as_factor(as.character(`FBI Code`))) %>%
+mutate(`FBI Code` = fct_recode(`FBI Code`,
+"Homicide" = "01A",
+"Invol. Manslaughter" = "01B",
+"Sexual Assault" = "02",
+"Robbery" = "03",
+"Aggravated Assault" = "04A",
+"Agravated Battery" = "04B",
+"Buglary" = "05",
+"Larceny" = "06",
+"Motor Vehicle Theft" = "07",
+"Simple Assault" = "08A",
+"Simple Battery" = "08B",
+"Arson" = "09",
+"Forgery & Conterfeiting" = "10",
+"Fraud" = "11",
+"Embezzlement" = "12",
+"Stolen Property" = "13",
+"Vandalism" = "14",
+"Weapons Violation" = "15",
+"Prostitution" = "16",
+"Criminal Sexual Abuse" = "17",
+"Drug Abuse" = "18",
+"Gambling" = "19",
+"Offenses Against Family" = "20",
+"Liquor License" = "22",
+"Disorderly Conduct" = "24",
+"Misc. Offenses" = "26"))
+
+
+#Reorder data
+chicago2 <- chicago2 %>% group_by(Arrest)
+chicago2 %>% arrange(desc(Hour))
+
+chicago2 <- chicago2 %>% group_by(Year)
+chicago2 %>% arrange(desc(Months))
+
+```
+
+###Comments from *Refactoring Data*
+We can see that we have to do some clean up of our data set. We need to convert FBI Code, Arrest and Domestic into factors and recode these variables. We also had to create two new variables, Hour and Months. These were also factored. This will be easier to use in the future. 
+
+
+
+
+###View missing data
+```{r}
+vim_plot = aggr(chicago2, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+countNA(chicago2)
+chicago2 = chicago2 %>% drop_na()
+vim_plot = aggr(chicago2, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)
+```
+
+###Comments from *Missing Data*
+We are showing missing data on Hour, Longitiude, Updated On, Y Coordinate and Description. These are a small percentage of missing data so we will run the Tidyverse drop_na() function. This will give us the cleasnest possible data. 
+
+
+##Data Cleansing
+```{r message = FALSE}
+drop <- c("Y Coordinate","Year", "ID", "Case Number", "Updated On", "X Coordinate", "Location") # Drop these variables for insignificance
+new_chicago = chicago2[,!(names(chicago2) %in% drop)]
+
+new_chicago = filter(new_chicago, `FBI Code` != 'Embezzlement' & `FBI Code` != 'Gambling' & `FBI Code` != 'Liquor License' & `FBI Code` != 'Arson' & `FBI Code` != 'Stolen Property')
+
+
+
+
+
+
+
+drop <- c("Latitude", "Longitude")
+chicago = chicago[,!(names(chicago) %in% drop)]
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```
+
+
+##Visualizing from Importing 
+```{r Visual, message=FALSE}
+
+#plotting
+ggplot(new_chicago, aes(x=Ward, fill = Arrest)) + geom_bar() + theme_bw()
+ggplot(new_chicago, aes(x=Hour, fill = Domestic)) + geom_bar() + theme_bw()
+ggplot(new_chicago, aes(x=Hour, fill = Arrest)) + geom_bar() + theme_bw()
+
+
+#Correlation
+ggcorr(new_chicago, label = TRUE)
+
+#Mapping
+ggplot(new_chicago, aes(Arrest)) +
+  geom_bar(fill = "#0073C2FF") +
+  theme_pubclean() + theme(axis.text.x = element_text(angle = 90, vjust= 0.5))
+
+ggplot(new_chicago, aes(Domestic)) +
+  geom_bar(fill = "#0073C2FF") +
+  theme_pubclean() + theme(axis.text.x = element_text(angle = 90, vjust= 0.5))
+
+ggplot(new_chicago, aes(`FBI Code`)) +
+  geom_bar(fill = "#0073C2FF") +
+  theme_pubclean() + theme(axis.text.x = element_text(angle = 90, vjust= 0.5))
+
+plot_density(new_chicago, title = "Density Plot of Numeric Variables")
+
+
+```
+
+###Comments from *Visualizing and Importing*
+When graphing this information, I chose different variations of Bar graphs since we are looking at categorical variables.
+one item that caught my eye was looking at most committed crime by FBI Code was "Larceny". Another interesting find was that there was almost *4x* the amount of non-domestic violence and non arrest vs Domestic Violence and Arrested. Lastly, I was able to view correlation matrix to see which variables are correlated to one another. I noticed that Community Area and Latitude are highly correlated. Also, X_Coordinate and Longitude are also 100% correlated but this is due these being the same variable but named differntly. I was also able to see that the least used data was Gambling, Embezzlement, Liquor License, Arson and Stolen Property. These will be taken out for Predictive modeling.
+
+
+
+###Random Forest Generation for variable importance
+```{r}
+#smaller data pool for CPU latency
+new_chicago = sample_frac(new_chicago, 0.1)
+
+fit_control = trainControl(method = "cv",  
+                           number = 10) #set up 10 fold cross-validation
+
+
+set.seed(1234)  
+rf_fit = train(Arrest ~.,
+                data = new_chicago, 
+                method = "ranger", 
+                importance = "permutation",
+                trControl = fit_control,
+                num.trees = 10)
+```
+
+###Validating variable importance
+```{r}
+varImp(rf_fit)
+```
+
+####Comments from *variable importance*
+We can see a breakdown of most important variables. The top variables are `FBI Code`Drug Abuse at 100%, `Primary Type`NARCOTICS at 59% and District015 on the low end of 2.6%. 
+
+
+###Data's structure/statistics
+```{r summary, message=FALSE}
+summary(new_chicago)
+str(new_chicago)
+describe(new_chicago)
+```
+
+####Comments from *Structure and Statistics*
+When looking at three functions above, "Summary", "Str" and "Describe", I found *Summary* to be the most informative for the numeric data. *Str* for seeing what the data types are and the levels of the factored variables. *Describe* was the most useful for showing frequency and proportion of each variable and data in that variable.
+
+
+
+
+
+
+
+
+
+
+
+

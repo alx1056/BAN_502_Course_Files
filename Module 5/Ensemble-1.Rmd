@@ -1,0 +1,320 @@
+### Ensemble Models  
+
+```{r echo = FALSE}
+#install.packages(c("titanic", "tidyverse","caret","rpart","caretEnsemble","ranger","VIM","mice"))
+library(titanic)
+library(tidyverse)
+library(caret)
+library(rpart)
+library(caretEnsemble) #new package
+library(ranger)
+library(VIM)
+library(mice)
+```
+
+Titanic data read-in and preparation.  
+```{r}
+titanic = titanic::titanic_train
+
+titanic = titanic %>% mutate(Survived = as.factor(Survived)) %>% 
+  mutate(Survived = fct_recode(Survived, "No" = "0", "Yes" = "1" )) %>%
+  mutate(Pclass = as.factor(Pclass)) %>% mutate(Sex = as.factor(Sex)) %>%
+  mutate(Embarked = as.factor(Embarked)) %>% 
+  mutate(Embarked = fct_recode(Embarked,"Unknown"="","Cherbourg"="C","Southampton"="S","Queenstown"="Q"))
+
+titanic = titanic %>% select(c(-Cabin,-Embarked)) #getting rid of Embarked too since we know it's no good 
+
+titanic = titanic %>% select(c("Survived","Pclass","Sex","Age","SibSp","Parch"))
+
+imp_age = mice(titanic, m=1, method='pmm', printFlag=FALSE)
+
+titanic_complete = complete(imp_age) 
+summary(titanic_complete)
+```
+
+Splitting (in the manner that we have done many times)  
+```{r}
+set.seed(157)
+split = createDataPartition(y=titanic_complete$Survived, p = .7, list = FALSE)
+train = slice(titanic_complete,split)
+test = slice(titanic_complete,-split)
+```
+
+In the next chunk we create trainControl object for caret. For ensemble models using caret we will seek to maximize the Area Under the Curve (AUC) of the ROC curve. Recall that higher values of AUC are indicative of better models. In order to build models in caret that focus on AUC, we need to modify the trainControl object. The modifications are indicated with comments below.    
+```{r}
+control = trainControl(
+  method = "cv",
+  number = 5, #to save time, we'll use 5 fold cross-validation rather than 10
+  savePredictions = "final",
+  classProbs = TRUE, #instructs caret to calculate probabilities (rather than providing final classifications)
+  summaryFunction = twoClassSummary,  #enables calculation of AUC (must be present for AUC, should not necessary for accuracy)
+  index=createResample(train$Survived) #new line needed (manages sampling in folds)
+  )
+```
+
+Specify list of models to include in the ensemble. This step also builds the models in the list. For now,we'll build without parameter tuning.  
+```{r}
+set.seed(109)
+model_list = caretList(
+  x=train[,-1], y=train$Survived, #use all variables (except Survived) as predictors
+  metric = "ROC", #specify that maximizing AUC is our objective
+  trControl= control, #using the previously defined trControl object
+  methodList=c("glm","ranger","rpart") #specifying the model methods to use
+  #A note about logistic regression in caret: Caret does not do any stepwise removal or addition of variables!
+  
+  #Ignore the warning message after you run this, it's not a problem!
+  )
+```
+The warning message(s) displayed after the models are built can be ignored.
+
+Looking at the first six predictions. These are the predicted survival probabilities of the first six passengers in the training set (the first six rows) for the two models that we are using in this ensemble. I am just doing this a quick sanity check.  
+```{r}
+as.data.frame(predict(model_list, newdata=head(train)))
+```
+
+Ideally, our models should each exhibit "good" performance, but be uncorrelated with each other. We can check model correlation with the following code.  
+```{r}
+modelCor(resamples(model_list)) #show model correlation
+```
+
+Unfortunately, these models are at least somewhat correlated. However, we'll move ahead and construct the ensemble model anyway.
+```{r}
+ensemble = caretEnsemble(
+  model_list, 
+  metric="ROC",
+  trControl=control #we already defined the trControl object
+    )
+```
+
+Examine the ensemble.  
+```{r}
+summary(ensemble)
+```
+From the summary, we see that the resulting AUC (shown as ROC) for the ensemble is 0.87. 
+
+We can then evaluate the performance of the ensemble on the training and testing sets.  
+```{r}
+#training set
+pred_ensemble = predict(ensemble, train, type = "raw")
+confusionMatrix(pred_ensemble,train$Survived)
+
+#testing set
+pred_ensemble_test = predict(ensemble, test, type = "raw")
+confusionMatrix(pred_ensemble_test,test$Survived)
+```
+
+Let's repeat, but with parameter tuning. Running this might take a moment :) 
+```{r}
+ranger_grid = expand.grid(mtry = 1:5, #only going up to 5 since we only have 5 predictors (got rid of Embarked)
+                          splitrule = c("gini","extratrees","hellinger"),
+                          min.node.size = 1:5)
+
+set.seed(109)
+model_list2 = caretList(
+  x=train[,-1], y=train$Survived, #use all variables (except Survived) as predictors
+  metric = "ROC", #specify that maximizing AUC is our objective
+  trControl= control, #using the previously defined trControl object
+  methodList=c("glm","rpart"), #specifying the model methods to use that we WILL NOT TUNE (logistic regression and rpart only)
+  tuneList=list( #specifies model(s) that WE WILL TUNE (ranger)
+    ranger1=caretModelSpec(method="ranger",tuneGrid = ranger_grid)
+  )
+  )
+  #A note about logistic regression in caret: Caret does not do any stepwise removal or addition of variables!
+```
+
+```{r}
+modelCor(resamples(model_list2)) #show model correlation
+```
+
+```{r}
+ensemble2 = caretEnsemble(
+  model_list2, 
+  metric="ROC",
+  trControl=control #we already defined the trControl object
+    )
+```
+
+Examine the ensemble.  
+```{r}
+summary(ensemble2)
+```
+
+```{r}
+#training set
+pred_ensemble2 = predict(ensemble2, train, type = "raw")
+confusionMatrix(pred_ensemble2,train$Survived)
+
+#testing set
+pred_ensemble_test2 = predict(ensemble2, test, type = "raw")
+confusionMatrix(pred_ensemble_test2,test$Survived)
+```
+
+#### Stacking
+Now we will look at using stacking.  
+```{r}
+stack = caretStack(
+  model_list2, #use the list of models already specified
+  method ="glm", #stack models linearly
+  metric ="ROC", #maximize AUC
+  trControl = control #use existing train control object
+  )
+print(stack)
+summary(stack)
+```
+
+Now use the stacked model to make predictions on the training and testing set.  
+```{r}
+#training set
+pred_stack = predict(stack, train, type = "raw")
+confusionMatrix(pred_stack,train$Survived)
+
+#testing set
+pred_stack_test = predict(stack, test, type = "raw")
+confusionMatrix(pred_stack_test,test$Survived)
+```
+Not much different than with the non-stacked ensemble.
+
+#### Credit Data Ensemble and Stacking  
+Let's repeat this, but with the credit data.  
+```{r}
+credit = read_csv("CSData.csv")
+```
+
+Data cleaning and preparation (as done before)  
+```{r}
+credit = credit %>% mutate(SeriousDlqin2yrs = as.factor(SeriousDlqin2yrs)) %>% 
+  mutate(SeriousDlqin2yrs = fct_recode(SeriousDlqin2yrs, "No" = "0", "Yes" = "1" )) 
+credit = credit %>% filter(RevolvingUtilizationOfUnsecuredLines < 2)
+credit = credit %>% filter(DebtRatio < 5)
+credit = credit %>% filter(MonthlyIncome < 20000) %>% drop_na()
+credit = credit %>% filter(NumberOfOpenCreditLinesAndLoans < 40)
+credit = credit %>% filter(NumberOfTimes90DaysLate < 10)
+credit = credit %>% filter(NumberRealEstateLoansOrLines < 10)
+credit = credit %>% filter(NumberOfDependents < 10)
+```
+
+Now we'll split the data. Note that I am calling the training and testing sets, *train2 and test2*, respectively so as to not overwrite the sets from the titanic dataset.    
+```{r}
+set.seed(123) 
+train.rows = createDataPartition(y = credit$SeriousDlqin2yrs, p=0.7, list = FALSE) #70% in training
+train2 = slice(credit,train.rows,)
+test2 = slice(credit,-train.rows,)
+```
+
+To build our ensemble, we are able to re-use much of the code from above. The control object has a different response in the index so I'm naming this object "control2".  
+```{r}
+control2 = trainControl(
+  method = "cv",
+  number = 3, #to save time, we'll use 3 fold cross-validation rather than 10
+  savePredictions = "final",
+  classProbs = TRUE, #instructs caret to calculate probabilities (rather than providing final classifications)
+  summaryFunction = twoClassSummary, #enables calculation of AUC
+  index=createResample(train2$SeriousDlqin2yrs), #new line needed (manages sampling in folds). Changed response variable to the correct dataset
+  verboseIter = TRUE
+  )
+```
+
+Specify list of models to include in the ensemble.  
+
+We must be sure to change the model to reflect the credit dataset (we use the matrix notation) and the direct reference to the train2 dataset (not needed with matrix notation). 
+
+Note that this next block of code *will* take some time to run.
+WARNING: The next block of code required 3.8 hours to run
+```{r}
+start_time = Sys.time() #Put here to measure how long this code takes to run
+
+ranger_grid = expand.grid(mtry = 1:8, #going to 8 
+                          splitrule = c("gini","extratrees","hellinger"),
+                          min.node.size = 1:3)
+
+set.seed(109)
+model_list3 = caretList(
+  x=as.data.frame(train2[,-1]), y=train2$SeriousDlqin2yrs, 
+  
+  ##NOTE about the line above
+  metric = "ROC", #specify that maximizing AUC is our objective
+  trControl= control2, #using the previously defined trControl object
+  methodList=c("glm","rpart"), #specifying the model methods to use
+  tuneList=list( #specifies model(s) that WE WILL TUNE (ranger)
+    ranger1=caretModelSpec(method="ranger",tuneGrid = ranger_grid)
+  )
+)
+
+end_time = Sys.time()
+end_time - start_time
+```
+
+```{r}
+saveRDS(model_list3,"model_list3.rds")
+```
+
+```{r}
+model_list3 = readRDS("model_list3.rds")
+```
+
+```{r}
+modelCor(resamples(model_list3))
+```
+The ranger and glm models are pretty strongly correlated. Weaker correlation between other models.  
+
+Building the ensemble.  
+```{r}
+ensemble3 = caretEnsemble(
+  model_list3, 
+  metric="ROC",
+  trControl=control2)
+```
+
+Examine the ensemble.  
+```{r}
+summary(ensemble3)
+```
+
+```{r}
+#training set
+pred_ensemble3 = predict(ensemble3, train2, type = "raw")
+confusionMatrix(pred_ensemble3,train2$SeriousDlqin2yrs)
+
+#testing set
+pred_ensemble_test3 = predict(ensemble3, test2, type = "raw")
+confusionMatrix(pred_ensemble_test3,test2$SeriousDlqin2yrs)
+```
+
+On to stacking.  
+```{r}
+start_time = Sys.time() #Put here to measure how long this code takes to run
+
+stack2 = caretStack(
+  model_list3, #use the list of models already specified
+  method ="glm", #stack models linearly
+  metric ="ROC", #maximize AUC
+  ###DO NOT use same trControl object here as you used to construct models
+  trControl=trainControl(
+    method="cv",
+    number=10,
+    savePredictions="final",
+    classProbs=TRUE,
+    summaryFunction=twoClassSummary
+  )
+)
+end_time = Sys.time()
+end_time - start_time
+```
+
+```{r}
+print(stack2)
+summary(stack2)
+```
+
+Now use the stacked model to make predictions on the training and testing set.  
+```{r}
+#training set
+pred_stack2 = predict(stack2, train2, type = "raw")
+confusionMatrix(pred_stack2,train2$SeriousDlqin2yrs)
+
+#testing set
+pred_stack_test2 = predict(stack2, test2, type = "raw")
+confusionMatrix(pred_stack_test2,test2$SeriousDlqin2yrs)
+```
+
+Similar peformance to the non-stacked ensemble.  

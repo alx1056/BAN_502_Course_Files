@@ -1,0 +1,228 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+##Fields, Alex
+##BAN 502
+###Module 4 - Assignment 2
+
+
+#### Task 3 - Q&A
+For the tree created in Task 2, how would you classify a 40 year-old parolee from Louisiana who
+served a 5 year prison sentence? Describe how you "walk through" the classification tree to arrive at your
+answer.
+**I Would look at the top with 100% and see what the baseline to move either left (true) or right (false). My tree starts by seeing what state you lived/served in and being from Louisiana I would go to the right. I would look at my age. Being 40 I would go to the left. Knowing I served 5 years I would move to the left and it states that I would have violated parole. **
+
+#### Task 4 - Q&A
+Using the *printcp()* function I was able to see the splits move to 7 at a cp value of 0.01. When looking at anything not maxing out the cp value is at 3 splits with a cp value of 0.136 which seems to be the optimal one. 
+
+#### Task 5 - Q&A
+age, crime, multiple.offenses state, time.served variables were used. *State* has the variable of importance and seems to be used to most.        
+
+
+###Task 6 - Q&A
+Using the confusion matrix on the training data I get Sensitivity of 0.9617, Specificity of 0.4909 and Accuracy of 0.907. This is a  pretty decent percentage for the model. 
+
+###Task 7 - Q&A
+Using the confusion matrix on the testing data I get Sensitivity of 1.0000, Specificity of 0.0000 and Accuracy of 0.886.
+This seems to be less accurate of a model than the training data. The model has a Kappa of 0 which is not good. Since this measures how much better the classier is, compared to guessing with the target distribution, we can see that the model can be better. 
+
+###Task 9 - Q&A
+For the Blood Dataset, the optimal CP for the training set was 0.016 while the test set was 0.012579. The CP for the testing set seemed to be a more precise model since the testing had 5 splits while the training had 4. The error on the testing set was more accurate compared to the training set by ~0.18. 
+
+###Task 10 - Q&A
+While pruning the tree to the optimal CP value of 0.126, you can see that the Accuracy is 0.817, Specificity is 0.9240, Sensitivity is 0.4717, and this has a balanced Accuracy of 0.6978. We can also see the Kappa value is close to 0.5. 
+
+
+```{r message=FALSE, echo=FALSE}
+options(tidyverse.quiet = TRUE)
+library(tidyverse)
+library(caret)
+library(rpart)
+library(RColorBrewer)
+library(rattle)
+```
+
+
+```{r Task 0, message = FALSE}
+library(readr)
+parole <- read_csv("parole.csv")
+parole = as_tibble(parole)
+
+parole = parole %>% mutate(male = as_factor(as.character(male))) %>%
+mutate(male = fct_recode(male,
+"male" = "1",
+"female" = "0"))
+
+parole = parole %>% mutate(race = as_factor(as.character(race))) %>%
+mutate(race = fct_recode(race,
+"white" = "1",
+"other" = "2"))
+
+parole = parole %>% mutate(state = as_factor(as.character(state))) %>%
+mutate(state = fct_recode(state,
+"other" = "1",
+"Kentucky" = "2",
+"Louisiana" = "3",
+"Virginia" = "4"))
+
+parole = parole %>% mutate(crime = as_factor(as.character(crime))) %>%
+mutate(crime = fct_recode(crime,
+"other" = "1",
+"larceny" = "2",
+"drug-related crime" = "3",
+"driving-related crime" = "4"))
+
+parole = parole %>% mutate(violator = as_factor(as.character(violator))) %>%
+mutate(violator = fct_recode(violator,
+"Violated Parole" = "0",
+"No Parole Violation" = "1"))
+
+parole = parole %>% drop_na() #drops N/A's
+str(parole)
+```
+
+
+###Training Data
+```{r Task 1}
+
+set.seed(12345)
+train.rows = createDataPartition(y = parole$violator, p = 0.7, list =FALSE)
+train = slice(parole, train.rows)
+test = slice(parole, -train.rows)
+
+```
+
+###Tree training plot 1
+```{r Task 2}
+tree1 = rpart(violator ~., train, method = "class")
+fancyRpartPlot(tree1, sub = "Decision Tree 1")
+
+#Showing accuracy of tree and prevents from a too complex tree
+printcp(tree1)
+plotcp(tree1)
+```
+
+###CP value change
+```{r}
+tree2 = rpart(violator ~., train, cp=.013636, method="class")
+#fancyRpartPlot(tree2, sub = "Decision Tree 1")
+printcp(tree2)
+```
+
+
+
+
+###Tree predicting
+```{r Task 6}
+treepred = predict(tree1, train, type = "class")
+head(treepred)
+```
+
+
+###Confusion Matrix
+```{r}
+confusionMatrix(treepred,train$violator,positive="Violated Parole") #predictions first then actual
+```
+
+
+###Testing Confusion Matrix
+```{r}
+tree2 = rpart(violator ~., test, method = "class")
+treepred = predict(tree2, test, type = "class")
+confusionMatrix(treepred,test$violator,positive="Violated Parole") #predictions first then actual
+
+```
+
+
+###Blood Data Set
+```{r Task 8, message=FALSE}
+library(readr)
+Blood <- read_csv("Blood.csv")
+Blood = as_tibble(Blood)
+
+Blood = Blood %>% mutate(DonatedMarch = as_factor(as.character(DonatedMarch))) %>%
+mutate(DonatedMarch = fct_recode(DonatedMarch,
+"Yes" = "1",
+"No" = "0"))
+
+```
+
+
+## Training Data
+
+###Training Data Blood Data
+```{r Task 1 Training} 
+
+set.seed(1234)
+train.rows = createDataPartition(y = Blood$DonatedMarch, p = 0.7, list =FALSE)
+train2 = slice(Blood, train.rows)
+test2 = slice(Blood, -train.rows)
+
+```
+
+###Tree training plot Blood Data
+```{r Task 2 training}
+tree_Blood = rpart(DonatedMarch ~., train2, method = "class")
+fancyRpartPlot(tree_Blood, sub = "Decision Tree 1")
+
+#Showing accuracy of tree and prevents from a too complex tree
+printcp(tree_Blood)
+plotcp(tree_Blood)
+```
+
+
+#CP Value Change for Blood Data Training
+```{r}
+tree_Blood = rpart(DonatedMarch ~., train2, cp=.02000, method="class")
+#fancyRpartPlot(tree2, sub = "Decision Tree 1")
+printcp(tree_Blood)
+```
+
+###Confusion Matrix Training
+```{r}
+tree_Blood = rpart(DonatedMarch ~., train2, method = "class")
+treepred_Blood = predict(tree_Blood, train2, type = "class")
+head(treepred_Blood)
+confusionMatrix(treepred_Blood,train2$DonatedMarch,positive="Yes") #predictions first then actual
+```
+
+
+## Testing Data
+
+###Testing Data Blood Data
+```{r Task 1 testing} 
+
+set.seed(1234)
+train.rows = createDataPartition(y = Blood$DonatedMarch, p = 0.7, list =FALSE)
+train2 = slice(Blood, train.rows)
+test2 = slice(Blood, -train.rows)
+
+```
+
+###Tree testing plot Blood Data
+```{r Task 2 testing}
+tree_Blood2 = rpart(DonatedMarch ~., test2, method = "class")
+fancyRpartPlot(tree_Blood2, sub = "Decision Tree 1")
+
+#Showing accuracy of tree and prevents from a too complex tree
+printcp(tree_Blood2)
+plotcp(tree_Blood2)
+```
+
+
+#CP Value Change for Blood Data Testing
+```{r}
+tree_Blood = rpart(DonatedMarch ~., test2, cp=0.012579, method="class")
+#fancyRpartPlot(tree2, sub = "Decision Tree 1")
+printcp(tree_Blood2)
+```
+
+###Confusion Matrix Testing
+```{r}
+tree_Blood2 = rpart(DonatedMarch ~., test2, method = "class")
+treepred_Blood2 = predict(tree_Blood2, test2, type = "class")
+head(treepred_Blood2)
+confusionMatrix(treepred_Blood2,test2$DonatedMarch,positive="Yes") #predictions first then actual
+```

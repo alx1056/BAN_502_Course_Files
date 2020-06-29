@@ -1,0 +1,110 @@
+---
+output:
+  word_document: default
+  html_document: default
+  pdf_document: default
+---
+# Alex Fields
+## BAN 502
+### Module 2 - Assignment 1
+
+
+#### Task 1 - Q&A
+Describe this dataset. How many variables and observations are there? **There are 153 observations (rows) and 6 Variables (columns)** 
+Is there any missing data? **Yes, there are some NA values in the dataset**
+Which variable is likely to be the response (Y) variable? **Ozone would be the best predictor variable**
+
+
+#### Task 2 - Q&A
+How many rows and columns remain in this new (air2) data frame? **There are 111 Observations and 6 Values when droping NA**
+
+#### Task 3 - Q&A
+Which variable is most strongly correlated with the "Ozone" variable? **Temp is highly correlated with Ozone (0.7)**
+Which variable is least strongly correlated with the "Ozone" variable? **Wind is least correlated with Ozone (-0.6)**
+
+
+#### Task 4 - Q&A
+Describe the relationship between "Temp" and "Ozone". **Using Scatter plot function, we can see that Temp and Ozone are positively correlated. When Temp increases, Ozone also increases.**
+
+
+#### Task 5 - Q&A
+
+*a*. Discuss the quality of this model (mention the R square value and significance of the predictor variable). **The model is relatively good but not the best. For every 1 unit of Temp increase you see -147 decrease of Ozone. The R^2 value for this is equal to 0.488. This is showing partial correlation.**
+*b*. Use the code "confint(model1)" to generate 95% confidence intervals for the coefficients. In what range does the slope coefficient likely fall? **The range for Ozone and Temp, resepectively fall between [-184.818372, -110.473773] [1.964787, 2.913433]. **
+
+
+#### Task 8 - Q&A 
+*Residuals* - We can see with our Residual plot that the SRR is not too noisy (give or take a few data points) giving hope to a good model.
+*R^2* - We can see that the R^2 value is not that great, showing a value of 0.48. This shows mild correaltion in the model. 
+*Hypothesis Test* - We can see that our linear model shows a p-value of less than .05 meaning Temp was a significant predictor of Ozone. 
+*Common Sense* - Overall using common sense, I would assume that the higher the temperature the more likely Ozone is to either go up or down (depending on how Ozone is measured). We can see with the scatterplot that these are relatively correlated, so to me this makes a decent model, statistics aside. 
+
+
+#### Task 9 - Q&A
+How might the model that you constructed in Task 5 be used? **We would use the confidence interval to determine where a certain parameter falls into a certain proportion. Meaning we can "predict" that Ozone or Temp will fall into  a certain range.**
+Are there any cautions or concerns that you would have when recommending the model for use? **The model is not perfect and you would want to fine tune the model before publishing or using for actual research. If you can show a higher R^2 value I would be ok with using this model. If you were able to collect a larger pool of data, I will feel confident that this data would align to a "good" model. **
+
+
+
+```{r Task 1, message=FALSE, echo=FALSE}
+library(tidyverse)
+library(GGally)
+library(car)
+library(lmtest)
+
+air = airquality
+
+summary(air)
+
+```
+
+
+```{r task 2}
+
+air2 = air %>% drop_na()
+
+```
+
+
+```{r Task 3, message=FALSE}
+ggpairs(air2)
+ggcorr(air2, label = TRUE)
+
+```
+
+```{r Task 4, message=FALSE}
+ggplot(air2, aes(x=Temp, y=Ozone)) + geom_point()
+
+```
+
+
+```{r Task 5, message=FALSE}
+X = air2$Temp
+Y = air2$Ozone
+
+model1 = lm(Y ~ X, air2)
+summary(model1)
+
+confint(model1, level = 0.95)
+```
+
+
+```{r Task 6, message=FALSE}
+
+ggplot(air2, aes(x=Temp, y=Ozone)) + geom_point() + geom_smooth(method="lm", se = FALSE)
+
+```
+
+
+```{r Task 7, message=FALSE}
+
+p1 = predict(model1,data.frame("X"=80))
+p1
+
+```
+
+```{r Task 8, message=FALSE}
+plot(model1)
+```
+
+

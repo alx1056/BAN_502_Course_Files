@@ -1,0 +1,107 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+#Fields, Alex
+##BAN 502
+###Module 4 Assignment 3 - RF
+
+
+####Task 3 - Q&A
+The most important variable is *TotalDonations* with a score of 100.00 and *Mnths_Since_Last* at 98.25. The least important variable being *Total_Donated at 0*. 
+
+####Task 5 - Q&A
+When running the confustion matrix on the training set I was able to  see the model had an Accuracy of 0.8931, Sensitivity of 0.6080 and Specificity of 0.9825. 
+
+####Task 6 - Q&A
+When looking at the Naive model, it seems that the accuracy is a little better. This could be it is assuming all observations are in the majority. 
+
+####Task 7 - Q&A
+The testing data seems to be less accurate than the training set. It drops almost 10% while the p-value (significance) becomes larger which is not what you want to see. The Model for the Testing data is not what we would like to have. 
+
+####Task 8 - Q&A
+Comment on how this model might be used in the "real-world." Would you recommend this model
+for real-world use? What if any concerns would you have about using the model?
+**This model could be used for blood donations like we have tested but for accuracy we would need a lot more data. We coud also use this model in predicting the weather/temperature in a certain region. I would recommend this model, its not the best but it is still fairly accurate. My only concern is the need for more data when using this model.**
+
+
+###Library
+```{r message = FALSE}
+options(tidyverse.quiet = TRUE)
+library(tidyverse)
+library(VIM) #visualizing missingness
+library(ranger) #for random forests
+library(caret)
+library()
+
+```
+
+
+
+### Cleaning Data
+```{r message = FALSE}
+library(readr)
+Blood <- read_csv("Blood.csv")
+
+Blood = Blood %>% mutate(DonatedMarch = as.factor(DonatedMarch)) %>% 
+  mutate(DonatedMarch = fct_recode(DonatedMarch, "No" = "0", "Yes" = "1" ))
+
+```
+
+
+###Training/Testing Split
+```{r}
+set.seed(1234)
+train.rows = createDataPartition(y = Blood$DonatedMarch, p = 0.7, list =FALSE)
+train = slice(Blood, train.rows)
+test = slice(Blood, -train.rows)
+```
+
+
+###Random Forest Generation
+```{r}
+fit_control = trainControl(method = "cv",  
+                           number = 10) #set up 10 fold cross-validation
+
+
+set.seed(1233)  
+rf_fit = train(DonatedMarch ~.,
+                data = train, 
+                method = "ranger", 
+                importance = "permutation",
+                trControl = fit_control,
+                num.trees = 100)
+```
+
+###Validating variable importance
+```{r}
+varImp(rf_fit)
+```
+
+
+###Predictions on training
+```{r}
+predRF = predict.train(rf_fit, train)
+head(predRF)
+```
+
+###Confusion Matrix on training
+```{r}
+confusionMatrix(predRF, train$DonatedMarch, positive = "Yes")
+```
+
+
+###Predictions on test
+```{r}
+predRF_test = predict(rf_fit, newdata = test)
+```
+
+###Confusion matrix on test
+```{r}
+confusionMatrix(predRF_test, test$DonatedMarch, positive = "Yes")
+```
+
+
+
+

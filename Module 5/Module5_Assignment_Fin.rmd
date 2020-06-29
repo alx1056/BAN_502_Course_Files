@@ -1,0 +1,468 @@
+---
+output:
+  html_document: default
+  word_document: default
+---
+# Fields, Alex
+## BAN 502 - Module 5 
+### Assignment 1 - Finance
+
+
+### Dataset Link - https://www.kaggle.com/cnic92/200-financial-indicators-of-us-stocks-20142018
+This Dataset is from a Binary Classification competition held by Kaggle to predict stock prices
+
+####Observations/Evaluations
+1.  When looking into the "trained" Nueral Network, we can see that there is a ~72% accuracy of overall prediction. This is our first sign of a good model. This overall prediction is higer than the Naive approach (No Info Rate) which is our next sign of a good model. We see a low p-value along with a kappa score of 33%. For our dataset not being perfectly balanced, I am happy with these results. 
+
+2.  When viewing our test set, we can see that their is very little change in comparison to training. Accuracy remains at 72% while Naive is below overlal accuracy and Kappa is ~31%. Both models seem fairly good to me. 
+
+3. Looking at the ensemble method, we can see utilizing *Random Forest, Decision tree, Logistic Regression and Nueral Networks* that we are not showing any substantial correlation (+-). This is what we would ideally like to see. The closest correlation we are seeing is between logistic and nnet. 
+
+4. With XGBoost, we had to convert all categorical data to Dummy variables. 
+When running the model, I found that this was the least helpful in determinig any predictions. The accuracy of this model was below what the Naive approach was showing. As well, our plot showing tree depth was also inconclusive of anything we would want to see. 
+
+5. Since I have run a Nueral Network, An ensemble (stacked and not stacked) and XGBoost, it seems the most accurate model was the ensemble model. 
+
+
+###Librarying in Packages
+```{r message = FALSE, echo = FALSE}
+library(tidyverse)
+library(caret)
+library(caretEnsemble)
+library(xgboost)
+library(ranger)
+library(rpart)
+library(nnet)
+library(VIM)
+```
+
+###Importing Data
+```{r message = FALSE}
+xFin <- read_csv("2018Fin.csv")#reads in data
+
+#str(xFin)
+#summary(xFin)
+
+```
+
+
+###Data Cleaning 1.1
+```{r message=FALSE}
+
+xFin = as.data.frame(xFin)
+
+xFin = xFin %>% dplyr::select("Class",
+`Revenue Growth`, `EPS Diluted`, `EBITDA Margin`, "priceBookValueRatio", "debtEquityRatio", "debtRatio", `PE ratio`, "Sector", `5Y Revenue Growth (per Share)`, "returnOnAssets", "returnOnEquity", "returnOnCapitalEmployed",
+"quickRatio")#removing variables of unimportance
+
+#Factor Class and Sector Variables for future feature selection
+xFin = xFin %>% 
+  mutate(Class = as.factor(Class)) %>% 
+  mutate(Class = fct_recode(Class, "No" = "0", "Yes" = "1" )) %>%
+  mutate(Sector = as.factor(Sector))
+
+
+```
+
+###Data Cleaning 1.2 (Missingness)
+```{r message = FALSE}
+vim_plot = aggr(xFin, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)#total rows before droping NA's = 4392
+
+xFin = drop_na(xFin)
+
+vim_plot = aggr(xFin, numbers = TRUE, prop = c(TRUE, FALSE),cex.axis=.7)#total rows after droping NA's = 2630
+```
+
+
+###Testing for Outliers
+```{r}
+par(mfrow=c(3,4))
+boxplot(xFin$Class, xFin$`Revenue Growth`)
+boxplot(xFin$Class, xFin$`EPS Diluted`)
+boxplot(xFin$Class, xFin$`EBITDA Margin`)
+boxplot(xFin$Class, xFin$priceBookValueRatio)
+boxplot(xFin$Class, xFin$debtEquityRatio)
+boxplot(xFin$Class, xFin$debtRatio)
+boxplot(xFin$Class, xFin$`PE ratio`)
+boxplot(xFin$Class, xFin$`5Y Revenue Growth (per Share)`)
+boxplot(xFin$Class, xFin$returnOnAssets)
+boxplot(xFin$Class, xFin$returnOnEquity)
+boxplot(xFin$Class, xFin$returnOnCapitalEmployed)
+boxplot(xFin$Class, xFin$quickRatio)
+
+```
+
+###Filtering Outliers
+```{r}
+
+xFin = xFin %>% filter(`Revenue Growth` <= 1)
+xFin = xFin %>% filter(`EPS Diluted` >= -10, `EPS Diluted` <= 10)
+xFin = xFin %>% filter(`EBITDA Margin` >= -5, `EBITDA Margin` <= 5)
+xFin = xFin %>% filter(priceBookValueRatio >= 0, priceBookValueRatio <= 5)
+xFin = xFin %>% filter(debtEquityRatio >= -1, debtEquityRatio <= 2)
+xFin = xFin %>% filter(debtRatio <= 1)
+xFin = xFin %>% filter(`PE ratio` <= 100)
+xFin = xFin %>% filter(returnOnAssets >= -5, returnOnAssets <= 5)
+xFin = xFin %>% filter(returnOnEquity >= -5, returnOnEquity <= 5)
+xFin = xFin %>% filter(returnOnCapitalEmployed >= -2, returnOnCapitalEmployed <= 2)
+xFin = xFin %>% filter(quickRatio <= 20)
+
+```
+
+
+###Training/Test Split
+```{r}
+set.seed(12345)
+train.rows = createDataPartition(xFin$Class,p=0.7,list=FALSE)
+train = dplyr::slice(xFin,train.rows)
+test = dplyr::slice(xFin,-train.rows)
+
+```
+
+
+###Building Nueral Network with no tuning
+```{r echo=TRUE, results='hide'}
+
+
+start_time = Sys.time() #for timing
+fitControl = trainControl(method = "cv", 
+                           number = 10)
+
+nnetGrid =  expand.grid(size = 1:13,
+                       decay = c(0.5, 0.1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7))
+
+
+#xFin[,-1] removes first column from dataset, we will wawnt to exclude "Class" since this is our response variable
+set.seed(1234)
+nnetFit = train(x=xFin[,-1],y=xFin$Class, 
+                 method = "nnet",
+                 trControl = fitControl,
+                 tuneGrid = nnetGrid,
+                 verbose = FALSE,
+                 trace = FALSE)
+
+end_time = Sys.time()
+end_time-start_time
+
+#~ 10 min to run on 1300 rows and 14 columns
+
+```
+
+###Viewing NN output
+```{r}
+nnetFit
+plot(nnetFit)
+
+```
+
+###Predictions on the NN training set
+```{r}
+predNetFit = predict(nnetFit, train)
+```
+
+###Confusion matrix (Train)
+```{r}
+confusionMatrix(predNetFit, train$Class, positive = "Yes")
+
+```
+
+
+
+###Predictions on the NN Testing set
+```{r}
+predNetFit = predict(nnetFit, test)
+```
+
+
+###Confusion matrix (Test)
+```{r}
+confusionMatrix(predNetFit, test$Class, positive = "Yes")
+
+```
+
+
+
+
+
+
+##Ensemble Methods
+```{r echo = FALSE, message = FALSE, results='hide'}
+
+control = trainControl(
+  method = "cv",
+  number = 5, #to save time, we'll use 5 fold cross-validation rather than 10
+  savePredictions = "final",
+  classProbs = TRUE, #instructs caret to calculate probabilities (rather than providing final classifications)
+  summaryFunction = twoClassSummary,  #enables calculation of AUC (must be present for AUC, should not necessary for accuracy)
+  index=createResample(train$Class) #new line needed (manages sampling in folds)
+  )
+```
+
+###This step builds the models in the list.
+```{r echo=TRUE, results='hide'}
+set.seed(111)
+model_list = caretList(
+  x=as.data.frame(train[,-1]), y=train$Class, #use all variables (except Class) as predictors
+  metric = "ROC", #specify that maximizing AUC is our objective
+  trControl= control, #using the previously defined trControl object
+  methodList=c("glm","rpart", "ranger", "nnet"
+  ) #specifying the model methods to use
+  )
+```
+
+ 
+```{r}
+as.data.frame(predict(model_list, newdata=head(train)))
+```
+
+###Model Correlation
+```{r}
+modelCor(resamples(model_list)) #show model correlation
+```
+
+
+###Creating the Ensemble list
+```{r}
+ensemble = caretEnsemble(
+  model_list, 
+  metric="ROC",
+  trControl=control)
+
+```
+
+###Examine the ensemble 
+```{r}
+summary(ensemble)
+```
+
+
+  
+```{r}
+#training set
+pred_ensemble = predict(ensemble, train, type = "raw")
+confusionMatrix(pred_ensemble,train$Class)
+
+#testing set
+pred_ensemble_test = predict(ensemble, test, type = "raw")
+confusionMatrix(pred_ensemble_test,test$Class)
+```
+
+
+```{r echo = FALSE, message = FALSE, results = 'hide'}
+ranger_grid = expand.grid(mtry = 1:13, #only going up to 13 since we only have 13 predictors (got rid of Embarked)
+                          splitrule = c("gini","extratrees","hellinger"),
+                          min.node.size = 1:5)
+
+set.seed(111)
+model_list = caretList(
+  x=as.data.frame(train[,-1]), y=train$Class, #use all variables (except Survived) as predictors
+  metric = "ROC", #specify that maximizing AUC is our objective
+  trControl= control, #using the previously defined trControl object
+  methodList=c("glm","rpart"), #specifying the model methods to use that we WILL NOT TUNE (logistic regression and rpart only)
+  tuneList=list(
+ranger = caretModelSpec(method="ranger", max.depth = 5, tuneGrid =
+expand.grid(mtry = 1:13,
+splitrule = c("gini","extratrees","hellinger"),
+min.node.size=1:5)),
+nn = caretModelSpec(method="nnet", tuneGrid =
+expand.grid(size = 1:23,
+decay = c(0.5, 0.1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6, 1e-7)),trace=FALSE)))
+
+```
+
+
+###Ensemble of list
+```{r}
+modelCor(resamples(model_list)) #show model correlation
+```
+
+
+
+
+
+
+###Stacking
+
+```{r echo=TRUE, results='hide'}
+control2 = trainControl(
+  method = "cv",
+  number = 3, #to save time, we'll use 3 fold cross-validation rather than 10
+  savePredictions = "final",
+  classProbs = TRUE, #instructs caret to calculate probabilities (rather than providing final classifications)
+  summaryFunction = twoClassSummary, #enables calculation of AUC
+  index=createResample(train$Class), #new line needed (manages sampling in folds). Changed response variable to the correct dataset
+  verboseIter = TRUE
+  )
+```
+
+
+**Below took 12 min to finish**
+```{r echo = FALSE, message=FALSE, results='hide'}
+start_time = Sys.time() #Put here to measure how long this code takes to run
+
+ranger_grid = expand.grid(mtry = 1:13, #going to 13
+                          splitrule = c("gini","extratrees","hellinger"),
+                          min.node.size = 1:3)
+
+set.seed(111)
+model_list3 = caretList(
+  x=as.data.frame(train[,-1]), y=train$Class, 
+  
+  ##NOTE about the line above
+  metric = "ROC", #specify that maximizing AUC is our objective
+  trControl= control2, #using the previously defined trControl object
+  methodList=c("glm","rpart"), #specifying the model methods to use
+  tuneList=list( #specifies model(s) that WE WILL TUNE (ranger)
+    ranger1=caretModelSpec(method="ranger",tuneGrid = ranger_grid)
+  )
+)
+
+end_time = Sys.time()
+end_time - start_time
+```
+
+
+
+```{r}
+modelCor(resamples(model_list3))
+```
+
+
+###Building the ensemble  
+```{r message FALSE, results='hide'}
+ensemble3 = caretEnsemble(
+  model_list3, 
+  metric="ROC",
+  trControl=control2)
+```
+
+###Examine the ensemble_3
+```{r}
+summary(ensemble3)
+```
+
+```{r}
+#training set
+pred_ensemble3 = predict(ensemble3, train, type = "raw")
+confusionMatrix(pred_ensemble3,train$Class)
+
+#testing set
+pred_ensemble_test3 = predict(ensemble3, test, type = "raw")
+confusionMatrix(pred_ensemble_test3,test$Class)
+```
+
+###stacking  
+```{r echo=T, results='hide'}
+start_time = Sys.time() #Put here to measure how long this code takes to run
+
+stack2 = caretStack(
+  model_list3, #use the list of models already specified
+  method ="glm", #stack models linearly
+  metric ="ROC", #maximize AUC
+  ###DO NOT use same trControl object here as you used to construct models
+  trControl=trainControl(
+    method="cv",
+    number=10,
+    savePredictions="final",
+    classProbs=TRUE,
+    summaryFunction=twoClassSummary
+  )
+)
+end_time = Sys.time()
+end_time - start_time
+```
+
+###View of Stack
+```{r}
+#print(stack2)
+#summary(stack2)
+```
+
+####Stacked model to make predictions on the training and testing set.  
+```{r}
+#training set
+pred_stack2 = predict(stack2, train, type = "raw")
+confusionMatrix(pred_stack2,train$Class)
+
+#testing set
+pred_stack_test2 = predict(stack2, test, type = "raw")
+confusionMatrix(pred_stack_test2,test$Class)
+
+```
+
+###XGBoost
+
+```{r}
+train_dummy = dummyVars(" ~ .", data = train) #creates dummy labels
+train_xgb = data.frame(predict(train_dummy, newdata = train)) #converts variables in dataset to dummies
+str(train_xgb)
+```
+
+
+```{r}
+test_dummy = dummyVars(" ~ .", data = test) #creates dummy labels
+test_xgb = data.frame(predict(test_dummy, newdata = test)) #converts variables in dataset to dummies
+```
+
+  
+```{r}
+train_xgb = train_xgb %>% dplyr::select(-Class.No) #NOTE! select conflict
+test_xgb = test_xgb %>% dplyr::select(-Class.No)
+```
+
+#Tuning model
+```{r}
+start_time = Sys.time() #for timing
+
+set.seed(999)
+ctrl = trainControl(method = "cv",
+                     number = 5) #10 fold, k-fold cross-validation
+
+tgrid = expand.grid(
+  nrounds = 100, #50, 100, and 150 in default tuning
+  max_depth = c(1,2,3,4), #1, 2, and 3 in default tuning
+  eta = c(0.01, 0.1, 0.2, 0.3), #0.3 and 0.4 in default tuning
+  gamma = 0, #fixed at 0 in default tuning
+  colsample_bytree = c(0.6, 0.8, 1), #0.6 and 0.6 in default tuning
+  min_child_weight = 1, #fixed at 1 in default tuning
+  subsample = c(0.8, 1) #0.5, 0.75, and 1 in default tuning, we don't have much data so can choose a larger value
+)
+
+fitxgb2 = train(as.factor(Class.Yes)~.,
+                data = train_xgb,
+                method="xgbTree",
+                tuneGrid = tgrid,
+                trControl=ctrl)
+
+end_time = Sys.time()
+end_time-start_time
+```
+
+```{r}
+saveRDS(fitxgb2,"fitxgb2.rds")
+rm(fitxgb2)
+```
+
+```{r}
+fitxgb2 = readRDS("fitxgb2.rds")
+```
+
+```{R}
+fitxgb2
+plot(fitxgb2)
+```
+
+```{r}
+predxgbtrain2 = predict(fitxgb2, train_xgb)
+confusionMatrix(as.factor(train_xgb$Class.Yes), predxgbtrain2,positive="1")
+```
+
+```{r}
+predxgbtest2 = predict(fitxgb2, test_xgb)
+confusionMatrix(as.factor(test_xgb$Class.Yes), predxgbtest2,positive="1")
+```
+
+
+
+
+

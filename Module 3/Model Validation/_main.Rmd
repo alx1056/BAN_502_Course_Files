@@ -1,0 +1,384 @@
+
+# Alex Fields
+## BAN 502
+### Module 3 - Assignment 1
+
+#### Task 1 - Q&A 
+
+```{r library, message=FALSE}
+options(tidyverse.quiet = TRUE)
+
+library(tidyverse)
+library(GGally)
+library(MASS)
+library(car)
+library(gridExtra)
+library(leaps)
+library(caret)
+```
+
+
+
+```{r Task 1, message=FALSE}
+hour <- read_csv("hour.csv")
+bike = as_tibble(hour)
+
+bike = bike %>% mutate(season = as_factor(as.character(season))) %>%
+mutate(season = fct_recode(season,
+"Spring" = "1",
+"Summer" = "2",
+"Fall" = "3",
+"Winter" = "4"))
+
+bike = bike %>% mutate(yr = as_factor(as.character(yr))) %>%
+mutate(yr = fct_recode(yr,
+"0" = "0",
+"1" = "1"))
+
+
+# We decided to convert yr, mnth and hr variables into factors to convert them to categorical variables. 
+# These values are not logically quantitative. Even though they are numbers they represent a categorical/string value. 
+# We should not be running models on "Tuesday". 
+
+bike = bike %>% mutate(mnth = as_factor(as.character(mnth))) %>%
+mutate(mnth = fct_recode(mnth,
+"1" = "1",
+"2" = "2",
+"3" = "3",
+"4" = "4",
+"5" = "5",
+"6" = "6",
+"7" = "7",
+"8" = "8",
+"9" = "9",
+"10" = "10",
+"11" = "11",
+"12" = "12"))
+
+bike = bike %>% mutate(hr = as_factor(as.character(hr))) %>%
+mutate(hr = fct_recode(hr,
+"0" = "0",
+"1" = "1",
+"2" = "2",
+"3" = "3",
+"4" = "4",
+"5" = "5",
+"6" = "6",
+"7" = "7",
+"8" = "8",
+"9" = "9",
+"10" = "10",
+"11" = "11",
+"12" = "12",
+"13" = "13",
+"14" = "14",
+"15" = "15",
+"16" = "16",
+"17" = "17",
+"18" = "18",
+"19" = "19",
+"20" = "20",
+"21" = "21",
+"22" = "22",
+"23" = "23"))
+
+bike = bike %>% mutate(holiday = as_factor(as.character(holiday))) %>%
+mutate(holiday = fct_recode(holiday,
+"NotHoliday" = "0",
+"Holiday" = "1"))
+
+bike = bike %>% mutate(workingday = as_factor(as.character(workingday))) %>%
+mutate(workingday = fct_recode(workingday,
+"NotWorkingDay" = "0",
+"WorkingDay" = "1"))
+
+bike = bike %>% mutate(weathersit = as_factor(as.character(weathersit))) %>%
+mutate(weathersit = fct_recode(weathersit,
+"NoPrecip" = "1",
+"Misty" = "2",
+"LightPrecip" = "3",
+"HeavyPrecip" = "4"))
+
+bike = bike %>% mutate(weekday = as_factor(as.character(weekday))) %>%
+mutate(weekday = fct_recode(weekday,
+"Sunday" = "0",
+"Monday" = "1",
+"Tuesday" = "2",
+"Wednesday" = "3", 
+"Thursday" = "4",
+"Friday" = "5",
+"Saturday" = "6"))
+
+
+```
+
+
+```{r Task 2, message=FALSE}
+
+model1 = lm(count ~ temp + atemp + hum + windspeed, bike)#linear model with quantitative variables as dependent        variables, Count being independent vatiable. 
+
+summary(model1)
+
+ggcorr(bike, label = TRUE)
+
+```
+
+
+```{r Task 3, message=FALSE}
+ssn = ggplot(bike, aes(x=season, y=count)) + 
+  geom_boxplot()
+
+year = ggplot(bike, aes(x=yr, y=count)) + 
+  geom_boxplot()
+
+month = ggplot(bike, aes(x=mnth, y=count)) + 
+  geom_boxplot()
+
+hldy = ggplot(bike, aes(x=holiday, y=count)) + 
+  geom_boxplot()
+
+wkngday = ggplot(bike, aes(x=workingday, y=count)) + 
+  geom_boxplot()
+
+wethsit = ggplot(bike, aes(x=weathersit, y=count)) + 
+  geom_boxplot()
+
+
+grid.arrange(ssn, year, month, hldy, wkngday, wethsit, bottom="Categorical\nBox Plot")
+
+
+```
+
+<!--chapter:end:Model_Validation.rmd-->
+
+---
+output:
+  word_document: default
+  html_document: default
+---
+# Alex Fields
+## BAN 502
+### Module 2 - Assignment 2
+
+#### Task 2 - Q&A
+It seems that "temp" and "atemp" are the highest correlated variables in relation to "Count" at (0.3). 
+
+#### Task 3 - Q&A 
+When looking at the box plots in figure 3, I noticed how certain variables affected count. <br /> 
+*Season* - affects count. We can see that this variable is useful in determing when your seasonal peaks and lows will be with your Bikes. It seems that Fall and Summer are your busiest times. <br /> 
+*Year* - does not affect count (as much as season). This only shows which you the difference quaritle ranges between 2011 and 2012. 2012 had more users on average. <br /> 
+*Month* - This is affects count. This is a good variable to have. Like Season, this is a more granular approach to see when you have peaks and lows with users. It seems to line up with Season that May through October you have your peaks. <br /> 
+*Holiday* - This is not a very good indicator and doesn't affect count. It shows very little within the Data. <br /> 
+*Working Day* - This is not a very good indicator and doesn't affect count. It shows very little within the Data as well like Holiday. <br /> 
+*Weather* - This seems to be a good indicator for count. This shows if the weather will be affecting users getting bikes. It seems that you have more users on average taking bikes when it is less chance of rain. (Logically that makes sense). <br /> 
+
+#### Task 4 - Q&A
+What variables are included in your forward model? **count, hr, atemp, yr, weathersit, season, mnth, hum, weekday, holiday, windspeed and temp.**
+Comment on the quality of the model. Does the model match our intuition/common sense? **Yes, it seems that all of our non-categorical based data is showing positive fit into the model (P-Vlaue < 0.05)**
+Is there evidence of multicollinearity? **No, It seems that there is no evidence of mulitcollinearity. Example is windspeed is showing negative in the model. This being a non-categorical variable, you would want it to show positive but logically, the count is going to go down the windier it is outside.**
+
+#### Task 5 - Q&A 
+Does this model differ from the forward model? If so, how? **No, both models seem to show the exact same output.**
+
+#### Task 6 - Q&A 
+Workingday is being represented in the model as a categorical variable. It is being kicked out for fitting the model too well. I have created a faceted scatter plot to show the relationship between workingday and a few other variables. It shows that when it is a workingday the bike count is a lot less compared to a non-working day. 
+
+#### Task 7 - Q&A 
+I like the model represented. It is logical and it makes sense statistically. I would recommend this model. 
+My only caution is that the user running the model shouldn't solely rely on forward and backwards stepwise regression. A good model would use many different test. 
+
+
+```{r library, message=FALSE}
+options(tidyverse.quiet = TRUE)
+
+library(tidyverse)
+library(GGally)
+library(MASS)
+library(car)
+library(gridExtra)
+```
+
+
+
+```{r Task 1, message=FALSE}
+hour <- read_csv("hour.csv")
+bike = as_tibble(hour)
+
+bike = bike %>% mutate(season = as_factor(as.character(season))) %>%
+mutate(season = fct_recode(season,
+"Spring" = "1",
+"Summer" = "2",
+"Fall" = "3",
+"Winter" = "4"))
+
+bike = bike %>% mutate(yr = as_factor(as.character(yr))) %>%
+mutate(yr = fct_recode(yr,
+"0" = "0",
+"1" = "1"))
+
+
+# We decided to convert yr, mnth and hr variables into factors to convert them to categorical variables. 
+# These values are not logically quantitative. Even though they are numbers they represent a categorical/string value. 
+# We should not be running models on "Tuesday". 
+
+bike = bike %>% mutate(mnth = as_factor(as.character(mnth))) %>%
+mutate(mnth = fct_recode(mnth,
+"1" = "1",
+"2" = "2",
+"3" = "3",
+"4" = "4",
+"5" = "5",
+"6" = "6",
+"7" = "7",
+"8" = "8",
+"9" = "9",
+"10" = "10",
+"11" = "11",
+"12" = "12"))
+
+bike = bike %>% mutate(hr = as_factor(as.character(hr))) %>%
+mutate(hr = fct_recode(hr,
+"0" = "0",
+"1" = "1",
+"2" = "2",
+"3" = "3",
+"4" = "4",
+"5" = "5",
+"6" = "6",
+"7" = "7",
+"8" = "8",
+"9" = "9",
+"10" = "10",
+"11" = "11",
+"12" = "12",
+"13" = "13",
+"14" = "14",
+"15" = "15",
+"16" = "16",
+"17" = "17",
+"18" = "18",
+"19" = "19",
+"20" = "20",
+"21" = "21",
+"22" = "22",
+"23" = "23"))
+
+bike = bike %>% mutate(holiday = as_factor(as.character(holiday))) %>%
+mutate(holiday = fct_recode(holiday,
+"NotHoliday" = "0",
+"Holiday" = "1"))
+
+bike = bike %>% mutate(workingday = as_factor(as.character(workingday))) %>%
+mutate(workingday = fct_recode(workingday,
+"NotWorkingDay" = "0",
+"WorkingDay" = "1"))
+
+bike = bike %>% mutate(weathersit = as_factor(as.character(weathersit))) %>%
+mutate(weathersit = fct_recode(weathersit,
+"NoPrecip" = "1",
+"Misty" = "2",
+"LightPrecip" = "3",
+"HeavyPrecip" = "4"))
+
+bike = bike %>% mutate(weekday = as_factor(as.character(weekday))) %>%
+mutate(weekday = fct_recode(weekday,
+"Sunday" = "0",
+"Monday" = "1",
+"Tuesday" = "2",
+"Wednesday" = "3", 
+"Thursday" = "4",
+"Friday" = "5",
+"Saturday" = "6"))
+
+
+```
+
+
+```{r Task 2, message=FALSE}
+
+model1 = lm(count ~ temp + atemp + hum + windspeed, bike)#linear model with quantitative variables as dependent        variables, Count being independent vatiable. 
+
+summary(model1)
+
+ggcorr(bike, label = TRUE)
+
+```
+
+
+```{r Task 3, message=FALSE}
+ssn = ggplot(bike, aes(x=season, y=count)) + 
+  geom_boxplot()
+
+year = ggplot(bike, aes(x=yr, y=count)) + 
+  geom_boxplot()
+
+month = ggplot(bike, aes(x=mnth, y=count)) + 
+  geom_boxplot()
+
+hldy = ggplot(bike, aes(x=holiday, y=count)) + 
+  geom_boxplot()
+
+wkngday = ggplot(bike, aes(x=workingday, y=count)) + 
+  geom_boxplot()
+
+wethsit = ggplot(bike, aes(x=weathersit, y=count)) + 
+  geom_boxplot()
+
+
+grid.arrange(ssn, year, month, hldy, wkngday, wethsit, bottom="Categorical\nBox Plot")
+
+
+```
+
+
+
+
+```{r task 4, message=FALSE}
+bike = bike %>% dplyr::select(-c("instant", "dteday", "registered", "casual"))
+
+allmod = lm(count ~., bike)
+summary(allmod)
+
+emptymod = lm(count ~ -1, bike)
+summary(emptymod)
+
+```
+
+###Forward Stepwise
+```{r Task 4_2, message=FALSE}
+forwardmod = stepAIC(emptymod, direction = "forward", scope=list(upper=allmod, lower=emptymod),
+                     trace = TRUE)
+summary(forwardmod)
+
+```
+
+
+###Backward Stepwise
+```{r Task 5, message=FALSE}
+
+backmod = stepAIC(allmod, direction = "backward", trace = TRUE)
+summary(backmod)
+
+```
+
+
+```{r Task 6, message=FALSE}
+ssn = ggplot(bike, aes(x=workingday, y=season)) + geom_point() + theme_bw()
+
+year = ggplot(bike, aes(x=workingday, y=yr)) + geom_point() + theme_bw()
+
+month = ggplot(bike, aes(x=workingday, y=mnth)) + geom_point() + theme_bw()
+
+hldy = ggplot(bike, aes(x=workingday, y=holiday)) + geom_point() + theme_bw()
+
+wethsit = ggplot(bike, aes(x=workingday, y=weathersit)) + geom_point() + theme_bw()
+
+cnt = ggplot(bike, aes(x=workingday, y=count)) + geom_point() + theme_bw()
+
+grid.arrange(ssn, year, month, hldy, wethsit, cnt, bottom="Correlation of\n'Workingday' Variable")
+
+```
+
+
+<!--chapter:end:Multiple_Linear_Regression_Assignment.rmd-->
+
